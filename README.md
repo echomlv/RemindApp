@@ -1,4 +1,5 @@
-     Plan: macOS 颈椎提醒 App（Python + rumps）
+[TOC]
+#Plan: macOS 颈椎提醒 App（Python + rumps）
 
      Context
 
@@ -164,3 +165,86 @@
      5. 切换为全屏遮罩模式 → 触发时全屏显示，点"知道了"关闭
      6. 切换不同声音 → 选择时即时预览播放
      7. 退出后重新运行 → 设置持久化（JSON 文件存在）
+
+
+# 打包为 .app
+使用 py2app 是最适合 rumps + pyobjc 的打包工具。
+
+**第一步：安装 py2app**
+```shell
+pip3 install py2app
+```
+
+**第二步：创建 setup.py**
+在你的项目根目录创建 setup.py：
+```python
+python from setuptools import setup
+
+APP = ['your_app.py']  # 替换为你的主文件名
+DATA_FILES = []
+OPTIONS = {
+    'argv_emulation': False,  # rumps 必须设为 False
+    'packages': ['rumps'],
+    'plist': {
+        'LSUIElement': True,  # 菜单栏应用不在 Dock 显示
+        'CFBundleName': '你的应用名',
+        'CFBundleVersion': '1.0.0',
+    }
+}
+
+setup(
+    app=APP,
+    data_files=DATA_FILES,
+    options={'py2app': OPTIONS},
+    setup_requires=['py2app'],
+)
+```
+
+**第三步：执行打包**
+```shell
+# 开发模式（快，用于测试）
+python setup.py py2app -A
+
+# 正式打包（独立 .app，可分发）
+python setup.py py2app
+打包完成后 .app 在 dist/ 目录下。
+
+```
+
+
+# 打包为 .dmg
+**方法一：使用 create-dmg（推荐）**
+
+```shell
+# 安装 create-dmg
+brew install create-dmg
+
+# 生成 dmg
+create-dmg \
+  --volname "你的应用名" \
+  --window-size 500 300 \
+  --icon-size 100 \
+  --app-drop-link 350 150 \
+  "你的应用名.dmg" \
+  "dist/你的应用名.app"
+```
+
+**方法二：系统自带 hdiutil（简单）**
+```shell
+hdiutil create -volname "你的应用名" \
+  -srcfolder dist/你的应用名.app \
+  -ov -format UDZO \
+  你的应用名.dmg
+```
+
+---
+
+
+# 完整流程总结
+```
+写代码 → python setup.py py2app → dist/xxx.app
+                                        ↓
+                              create-dmg → xxx.dmg
+                                        ↓
+                                发给朋友安装使用
+```
