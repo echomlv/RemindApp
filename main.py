@@ -1,7 +1,12 @@
 """RemindApp 主程序 - macOS 菜单栏颈椎提醒工具"""
 
 import random
+from datetime import datetime
+from typing import Optional
+
+import objc
 import rumps
+from Foundation import NSDistributedNotificationCenter, NSObject
 
 from config import Config
 from reminder import ReminderManager
@@ -17,6 +22,9 @@ class RemindApp(rumps.App):
         super().__init__("RemindApp", title="🔔", quit_button=None)
 
         self._manager = ReminderManager(on_fire=self._on_reminder_fire)
+        self._lock_time: Optional[datetime] = None
+        self._paused_by_lock: bool = False
+        self._remaining_on_lock: Optional[float] = None
         self._build_menu()
 
         # 若上次退出时处于启用状态，自动恢复
@@ -360,6 +368,44 @@ class RemindApp(rumps.App):
     def _test_reminder(self, _):
         self._on_reminder_fire()
 
+    def _setup_lock_observer(self):
+        self._lock_observer = _ScreenLockObserver.alloc().initWithApp_(self)
+        center = NSDistributedNotificationCenter.defaultCenter()
+        center.addObserver_selector_name_object_(
+            self._lock_observer, b"onScreenLocked:", "com.apple.screenIsLocked", None
+        )
+        center.addObserver_selector_name_object_(
+            self._lock_observer, b"onScreenUnlocked:", "com.apple.screenIsUnlocked", None
+        )
+
+    def _on_screen_lock(self):
+        self._lock_time = datetime.now()
+        if self._manager.is_running:
+            self._remaining_on_lock = self._manager.seconds_until_next()
+            self._manager.stop()
+            self._paused_by_lock = True
+
+    def _on_screen_unlock(self):
+        if not self._paused_by_lock or self._lock_time is None:
+            return
+
+        lock_duration = (datetime.now() - self._lock_time).total_seconds()
+        self._paused_by_lock = False
+        self._lock_time = None
+        remaining = self._remaining_on_lock
+        self._remaining_on_lock = None
+
+        if lock_duration >= 15 * 60:
+            # 锁屏 >= 15 分钟：重置并保持暂停，等用户手动开启
+            config.set("enabled", False)
+            AppKitDispatch.run_on_main(
+                lambda: setattr(self._toggle_item, "state", False)
+            )
+        else:
+            # 锁屏 < 15 分钟：恢复剩余倒计时（最少 30 秒）
+            resume_seconds = max(30.0, remaining) if remaining else config.get("interval_minutes") * 60.0
+            self._manager.start(resume_seconds / 60.0, config.get("recurring"))
+
     def run(self):
         # NSApplication.sharedApplication() 在 run() 阶段才真正初始化，
         # 此处设置激活策略来隐藏程序坞图标
@@ -369,7 +415,23 @@ class RemindApp(rumps.App):
             ns_app.setActivationPolicy_(
                 AppKit.NSApplicationActivationPolicyAccessory
             )
+        self._setup_lock_observer()
         super().run()
+
+
+class _ScreenLockObserver(NSObject):
+    def initWithApp_(self, app):
+        self = objc.super(_ScreenLockObserver, self).init()
+        if self is None:
+            return None
+        self._app = app
+        return self
+
+    def onScreenLocked_(self, notification):
+        self._app._on_screen_lock()
+
+    def onScreenUnlocked_(self, notification):
+        self._app._on_screen_unlock()
 
 
 class AppKitDispatch:
