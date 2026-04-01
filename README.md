@@ -249,3 +249,8 @@ hdiutil create -volname "你的应用名" \
                                 发给朋友安装使用
 ```
 
+# 恢复会话
+```shell
+claude --resume "macos-cervical-reminder-app"
+
+```

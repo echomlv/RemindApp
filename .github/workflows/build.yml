@@ -2,7 +2,6 @@ name: Build macOS DMG
 
 on:
   push:
-    branches: [main]
     tags:
       - "v*"
   workflow_dispatch:
@@ -10,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+    permissions:
+      contents: write #for Release
 
     steps:
       - name: Checkout
