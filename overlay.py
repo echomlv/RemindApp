@@ -19,7 +19,7 @@ class _OverlayWindow(AppKit.NSWindow):
         if event.keyCode() in (53, 36):
             _dismiss_current()
         else:
-            super().keyDown_(event)
+            AppKit.NSWindow.keyDown_(self, event)
 
 
 class _ButtonHandler(AppKit.NSObject):
@@ -85,7 +85,7 @@ def show_overlay(message: str, emoji: str):
     card_x = (frame.size.width - card_w) / 2
     card_y = (frame.size.height - card_h) / 2
 
-    # 毛玻璃卡片
+    # 毛玻璃卡片 —— 强制 Dark Aqua，保证深色背景下白字清晰可见
     card = AppKit.NSVisualEffectView.alloc().initWithFrame_(
         AppKit.NSMakeRect(card_x, card_y, card_w, card_h)
     )
@@ -95,6 +95,11 @@ def show_overlay(message: str, emoji: str):
     card.setWantsLayer_(True)
     card.layer().setCornerRadius_(22.0)
     card.layer().setMasksToBounds_(True)
+    # 无论系统是浅色还是深色主题，卡片始终使用深色外观
+    dark_appearance = AppKit.NSAppearance.appearanceNamed_(
+        AppKit.NSAppearanceNameDarkAqua
+    )
+    card.setAppearance_(dark_appearance)
     content.addSubview_(card)
 
     # Emoji 标签（大号，卡片顶部）
@@ -108,6 +113,8 @@ def show_overlay(message: str, emoji: str):
     emoji_field.setDrawsBackground_(False)
     emoji_field.setEditable_(False)
     emoji_field.setSelectable_(False)
+    # 显式设白色，避免系统主题干扰
+    emoji_field.setTextColor_(AppKit.NSColor.whiteColor())
     card.addSubview_(emoji_field)
 
     # 提示语文字

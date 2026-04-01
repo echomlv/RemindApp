@@ -16,6 +16,8 @@ DEFAULTS = {
     "use_random_template": True,
     "selected_template_key": "neck",
     "custom_message": "",
+    "tts_enabled": False,
+    "tts_voice": "Tingting",
 }
 
 

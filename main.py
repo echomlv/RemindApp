@@ -5,7 +5,7 @@ import rumps
 
 from config import Config
 from reminder import ReminderManager
-from notifier import play_sound, send_banner, SOUNDS
+from notifier import play_sound, send_banner, speak_text, SOUNDS, TTS_VOICES
 from templates import TEMPLATES
 from overlay import show_overlay_from_thread
 
@@ -45,6 +45,7 @@ class RemindApp(rumps.App):
             self._build_message_menu(),
             self._build_notification_menu(),
             self._build_sound_menu(),
+            self._build_tts_menu(),
             None,
             rumps.MenuItem("🔍 测试提醒", callback=self._test_reminder),
             None,
@@ -133,6 +134,28 @@ class RemindApp(rumps.App):
         self._sound_menu = menu
         return menu
 
+    def _build_tts_menu(self):
+        menu = rumps.MenuItem("🗣️ 语音播报")
+
+        self._tts_enabled_item = rumps.MenuItem("启用语音播报", callback=self._toggle_tts)
+        self._tts_enabled_item.state = config.get("tts_enabled")
+        menu.add(self._tts_enabled_item)
+        menu.add(None)
+
+        # 音色子菜单
+        voice_menu = rumps.MenuItem("选择音色")
+        current_voice = config.get("tts_voice")
+        for key, label in TTS_VOICES:
+            item = rumps.MenuItem(label, callback=self._select_tts_voice)
+            item.state = key == current_voice
+            voice_menu.add(item)
+        self._tts_voice_menu = voice_menu
+        menu.add(voice_menu)
+
+        menu.add(rumps.MenuItem("试听语音...", callback=self._preview_tts))
+        self._tts_menu = menu
+        return menu
+
     # ──────────────────────────────────────────
     # 定时器：每秒更新倒计时显示
     # ──────────────────────────────────────────
@@ -161,6 +184,10 @@ class RemindApp(rumps.App):
             show_overlay_from_thread(message, emoji)
         else:
             send_banner("该休息啦 🔔", f"{emoji} {message}")
+
+        # TTS 语音播报（在通知显示后播放，避免同时抢占音频）
+        if config.get("tts_enabled"):
+            speak_text(message, voice=config.get("tts_voice"))
 
         # 单次模式：触发后关闭定时器
         if not config.get("recurring"):
@@ -307,8 +334,42 @@ class RemindApp(rumps.App):
         if name != "None":
             play_sound(name)
 
+    def _toggle_tts(self, sender):
+        new_val = not config.get("tts_enabled")
+        config.set("tts_enabled", new_val)
+        sender.state = new_val
+
+    def _select_tts_voice(self, sender):
+        label = sender.title
+        # 通过显示名找到 voice key
+        for key, display in TTS_VOICES:
+            if display == label:
+                config.set("tts_voice", key)
+                break
+        # 更新选中状态
+        for _, display in TTS_VOICES:
+            try:
+                self._tts_voice_menu[display].state = display == label
+            except KeyError:
+                pass
+
+    def _preview_tts(self, _):
+        message, _ = self._get_current_message()
+        speak_text(message, voice=config.get("tts_voice"))
+
     def _test_reminder(self, _):
         self._on_reminder_fire()
+
+    def run(self):
+        # NSApplication.sharedApplication() 在 run() 阶段才真正初始化，
+        # 此处设置激活策略来隐藏程序坞图标
+        import AppKit
+        ns_app = AppKit.NSApplication.sharedApplication()
+        if ns_app is not None:
+            ns_app.setActivationPolicy_(
+                AppKit.NSApplicationActivationPolicyAccessory
+            )
+        super().run()
 
 
 class AppKitDispatch:
