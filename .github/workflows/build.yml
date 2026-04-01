@@ -1,0 +1,57 @@
+name: Build macOS DMG
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install rumps pyobjc-framework-Cocoa py2app
+
+      - name: Generate icon
+        run: python3 create_icon.py
+
+      - name: Build .app (py2app)
+        run: python3 setup.py py2app
+
+      - name: Build .dmg (hdiutil)
+        run: |
+          TMPDIR=$(mktemp -d)
+          cp -r dist/RemindApp.app "$TMPDIR/"
+          ln -s /Applications "$TMPDIR/Applications"
+          hdiutil create \
+            -volname "RemindApp" \
+            -srcfolder "$TMPDIR" \
+            -ov \
+            -format UDZO \
+            -fs HFS+ \
+            dist/RemindApp.dmg
+          rm -rf "$TMPDIR"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RemindApp-dmg
+          path: dist/RemindApp.dmg
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/RemindApp.dmg
+          generate_release_notes: true
