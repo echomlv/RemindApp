@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod +x /Users/kk/workspace/remind_app/launch.command)",
+      "Bash(python3 -m py_compile config.py templates.py notifier.py reminder.py overlay.py main.py)",
+      "Bash(python3 -m py_compile reminder.py)",
+      "Bash(python3 -c \"import rumps; print\\(''rumps:'', rumps.__version__\\)\")",
+      "Bash(python3 -c \"import AppKit; print\\(''AppKit \\(pyobjc\\): OK''\\)\")",
+      "Bash(pip3 install:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}
