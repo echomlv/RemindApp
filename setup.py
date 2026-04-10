@@ -36,7 +36,15 @@ OPTIONS = {
         "CoreFoundation",
     ],
     # 不需要的模块（减小体积）
-    "excludes": ["tkinter", "test", "unittest"],
+    "excludes": [
+        "tkinter",
+        "test",
+        "unittest",
+        "numpy",
+        "PIL",
+        "setuptools",
+        "pkg_resources",
+    ],
     # False = 独立打包（包含 Python 运行时），适合分发
     "semi_standalone": False,
     "site_packages": False,

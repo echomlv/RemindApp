@@ -2,6 +2,11 @@
 """
 生成 RemindApp.icns 图标
 设计：蓝紫渐变圆角背景 + 金色铃铛 emoji
+
+- 外边距：画布四周留 round(size × 40/1024) 的透明边（1024px 时恰好 40px），内容区缩为 944×944
+  - 圆角：半径改为 inner × 0.225（基于内侧边长，而非整个画布），与 Big Sur squircle 标准一致
+  - 渐变、emoji 均已切换到以内侧区域（inner_rect）为基准绘制和居中
+
 """
 
 import os
@@ -20,29 +25,32 @@ def _draw_icon(size: int) -> AppKit.NSImage:
     ctx = AppKit.NSGraphicsContext.currentContext()
     ctx.setImageInterpolation_(AppKit.NSImageInterpolationHigh)
 
-    bounds = AppKit.NSMakeRect(0, 0, size, size)
+    # ── 外边距：四周留 40px 透明边（与 macOS 系统图标视觉尺寸对齐）──────
+    margin = round(size * 40 / 1024)
+    inner = size - margin * 2
+    inner_rect = AppKit.NSMakeRect(margin, margin, inner, inner)
 
-    # ── 1. 圆角裁剪（macOS 图标圆角约为 22.5% 的边长）──────────────────
-    radius = size * 0.225
+    # ── 1. 圆角裁剪（半径取内侧边长的 22.5%，匹配 Big Sur squircle）────
+    radius = inner * 0.225
     clip_path = AppKit.NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-        bounds, radius, radius
+        inner_rect, radius, radius
     )
     clip_path.addClip()
 
     # ── 2. 渐变背景：左下深蓝 → 右上粉紫 ──────────────────────────────
     color_start = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(
-        0.255, 0.341, 0.820, 1.0   # #4157D1
+        0.255, 0.341, 0.820, 1.0  # #4157D1
     )
     color_end = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(
-        0.784, 0.314, 0.753, 1.0   # #C850C0
+        0.784, 0.314, 0.753, 1.0  # #C850C0
     )
     gradient = AppKit.NSGradient.alloc().initWithStartingColor_endingColor_(
         color_start, color_end
     )
-    gradient.drawInRect_angle_(bounds, 135)
+    gradient.drawInRect_angle_(inner_rect, 135)
 
     # ── 3. 铃铛 emoji，居中略上 ─────────────────────────────────────────
-    font_size = size * 0.55
+    font_size = inner * 0.55
     font = AppKit.NSFont.fontWithName_size_("Apple Color Emoji", font_size)
     if font is None:
         # 回退到系统字体（极少情况）
@@ -54,8 +62,8 @@ def _draw_icon(size: int) -> AppKit.NSImage:
     bell = Foundation.NSString.stringWithString_("🔔")
     text_size = bell.sizeWithAttributes_(attrs)
 
-    draw_x = (size - text_size.width) / 2
-    draw_y = (size - text_size.height) / 2 + size * 0.02  # 视觉重心略上移
+    draw_x = margin + (inner - text_size.width) / 2
+    draw_y = margin + (inner - text_size.height) / 2 + inner * 0.02  # 视觉重心略上移
 
     bell.drawAtPoint_withAttributes_(
         AppKit.NSMakePoint(draw_x, draw_y),
@@ -73,7 +81,7 @@ def _save_png(image: AppKit.NSImage, path: str, size: int):
     image.drawInRect_fromRect_operation_fraction_(
         AppKit.NSMakeRect(0, 0, size, size),
         AppKit.NSMakeRect(0, 0, 0, 0),  # NSZeroRect → 使用整张图
-        2,                               # NSCompositingOperationSourceOver
+        2,  # NSCompositingOperationSourceOver
         1.0,
     )
     scaled.unlockFocus()
@@ -96,15 +104,15 @@ def create_icns(output: str = "RemindApp.icns"):
 
     # iconutil 要求的所有尺寸
     specs = [
-        (16,   "icon_16x16.png"),
-        (32,   "icon_16x16@2x.png"),
-        (32,   "icon_32x32.png"),
-        (64,   "icon_32x32@2x.png"),
-        (128,  "icon_128x128.png"),
-        (256,  "icon_128x128@2x.png"),
-        (256,  "icon_256x256.png"),
-        (512,  "icon_256x256@2x.png"),
-        (512,  "icon_512x512.png"),
+        (16, "icon_16x16.png"),
+        (32, "icon_16x16@2x.png"),
+        (32, "icon_32x32.png"),
+        (64, "icon_32x32@2x.png"),
+        (128, "icon_128x128.png"),
+        (256, "icon_128x128@2x.png"),
+        (256, "icon_256x256.png"),
+        (512, "icon_256x256@2x.png"),
+        (512, "icon_512x512.png"),
         (1024, "icon_512x512@2x.png"),
     ]
     for px, filename in specs:
